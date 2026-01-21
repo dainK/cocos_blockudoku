@@ -70,19 +70,6 @@ import { Block } from './Block';
       );
     }
   
-    worldToGrid (worldPos:Vec3) {
-      const local = this.node.getComponent(UITransform)!
-        .convertToNodeSpaceAR(worldPos);
-  
-      const x = Math.floor(
-        (local.x + (this.size*this.cellSize)/2) / this.cellSize
-      );
-      const y = Math.floor(
-        ((this.size*this.cellSize)/2 - local.y) / this.cellSize
-      );
-  
-      return { x, y };
-    }
     worldToGridTopLeft(worldPos: Vec3) {
       const local = this.node.getComponent(UITransform)!
         .convertToNodeSpaceAR(worldPos);
@@ -95,24 +82,26 @@ import { Block } from './Block';
     
       return { x, y };
     }
-
     canPlace(shape: number[][], gx: number, gy: number): boolean {
-      for (let y = 0; y < shape.length; y++) {
-        for (let x = 0; x < shape[0].length; x++) {
-          if (shape[y][x] === 0) continue; // shape에서 0은 무시
-    
-          const bx = gx + x;
-          const by = gy + y;
-    
-          // 보드 범위 밖이면 불가
-          if (bx < 0 || bx >= this.size || by < 0 || by >= this.size) return false;
-    
-          // 이미 채워진 칸이면 불가
-          if (this.grid[by][bx]) return false;
-        }
+      const h = shape.length;
+      const w = shape[0].length;
+  
+      for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+              if (shape[y][x]==0) continue;
+  
+              const bx = gx + x;
+              const by = gy + y;
+  
+              // 1이 보드 밖이면 놓을 수 없음
+              if (bx < 0 || bx >= this.size || by < 0 || by >= this.size) return false;
+  
+              // 이미 채워진 칸이면 놓을 수 없음
+              if (this.grid[by][bx]) return false;
+          }
       }
       return true;
-    }
+  }
 
     place(shape: number[][], gx: number, gy: number, color: Color) {
       const h = shape.length;
@@ -210,31 +199,31 @@ import { Block } from './Block';
     }
     preview(shape: number[][], gx: number, gy: number) {
       this.clearPreview();
-    
+  
+      // shape 안의 1이 하나라도 보드 밖이면 preview 안 보여줌
       if (!this.canPlace(shape, gx, gy)) return;
-    
+  
       const h = shape.length;
       const w = shape[0].length;
-    
+  
       for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          if (!shape[y][x]) continue;
-    
-          const bx = gx + x;
-          const by = gy + y;
-    
-          this.previewCells.push({ bx, by });
-        }
+          for (let x = 0; x < w; x++) {
+              if (!shape[y][x]) continue;
+  
+              const bx = gx + x;
+              const by = gy + y;
+  
+              this.previewCells.push({ bx, by });
+          }
       }
-    
+  
       for (const p of this.previewCells) {
-        const cell = this.cellNodes[p.by][p.bx];
-        if (cell) {
-          cell.getComponent(Sprite)!.color =
-            new Color(100, 255, 100, 180);
-        }
+          const cell = this.cellNodes[p.by][p.bx];
+          if (cell) {
+              cell.getComponent(Sprite)!.color = new Color(100, 255, 100, 180);
+          }
       }
-    }
+  }
     
 
     getShapeCells(shape) {
@@ -248,33 +237,39 @@ import { Block } from './Block';
       }
       return cells;
     }
-    getShapeSize(shape: number[][]): {rows: number, cols: number} {
-      let maxRow = 0, maxCol = 0;
-      for (let y = 0; y < shape.length; y++) {
-        for (let x = 0; x < shape[0].length; x++) {
-          if (shape[y][x]) {
-            maxRow = Math.max(maxRow, y);
-            maxCol = Math.max(maxCol, x);
-          }
-        }
-      }
-      return { rows: maxRow + 1, cols: maxCol + 1 };
-    }
+    // getShapeSize(shape: number[][]): {rows: number, cols: number} {
+    //   let maxRow = 0, maxCol = 0;
+    //   for (let y = 0; y < shape.length; y++) {
+    //     for (let x = 0; x < shape[0].length; x++) {
+    //       if (shape[y][x]) {
+    //         maxRow = Math.max(maxRow, y);
+    //         maxCol = Math.max(maxCol, x);
+    //       }
+    //     }
+    //   }
+    //   return { rows: maxRow + 1, cols: maxCol + 1 };
+    // }
+    
     canPlaceAny(blocks: Block[]): boolean {
       for (const block of blocks) {
-        const shapeRows = block.shape.length;
-        const shapeCols = block.shape[0].length;
-
-        // 보드 전체에 대해 shape가 들어갈 수 있는 좌표만 체크
-        for (let y = 0; y <= this.size - shapeRows; y++) {
-          for (let x = 0; x <= this.size - shapeCols; x++) {
-            if (this.canPlace(block.shape, x, y)) return true;
+          const shape = block.shape;
+          const h = shape.length;
+          const w = shape[0].length;
+  
+          // 보드 전체를 gx: 0~size-1, gy: 0~size-1까지 돌면서 canPlace 확인
+          for (let gy = -h+1; gy < this.size; gy++) {
+              for (let gx = -w+1; gx < this.size; gx++) {
+                  if (this.canPlace(shape, gx, gy)) {
+                      console.log('can');
+                      return true; // 하나라도 놓을 수 있음
+                  }
+              }
           }
-        }
       }
-      return false;
-    }
-    
+      console.log('nocan');
+      return false; // 모든 블록 놓을 수 없음 → 게임오버
+  }
+        
   gameOver() {
     this.ui.onGameOver();
   }

@@ -57,11 +57,6 @@ import { Board } from './Board';
           const cell = instantiate(this.cellPrefab);
           cell.setParent(this.node);
     
-          // ⭐ 중앙 (2,2) 기준
-          // cell.setPosition(
-          //   (x - 2) * size,
-          //   -(y - 2) * size
-          // );
           cell.setPosition(
             x * size,
             -y * size
@@ -72,8 +67,6 @@ import { Board } from './Board';
         }
       }
     
-      // const ui = this.node.getComponent(UITransform)!;
-      // ui.setContentSize(5 * size, 5 * size);
       const ui = this.node.getComponent(UITransform)!;
       ui.setAnchorPoint(0, 1);   // ⭐ 좌상단 앵커
       ui.setContentSize(5 * size, 5 * size);
@@ -92,21 +85,7 @@ import { Board } from './Board';
     
       return { minX, minY };
     }
-    getShapeRealTopLeftWorld(): Vec3 {
-      const ui = this.node.getComponent(UITransform)!;
-      const size = 80;
-    
-      const { minX, minY } = this.getShapeOffset();
-    
-      // 중앙(2,2) 기준이므로 보정
-      const localPos = new Vec3(
-        (minX - 2) * size,
-        -(minY - 2) * size,
-        0
-      );
-    
-      return ui.convertToWorldSpaceAR(localPos);
-    }
+
     onTouchStart () {
       this.startPos.set(this.node.position);
       this.node.setScale(1, 1, 1);
@@ -122,7 +101,6 @@ import { Board } from './Board';
       const { x, y } = this.board.worldToGridTopLeft(worldPos);
       this.board.preview(this.shape, x, y);
     }
-
 
     onTouchEnd () {
         this.node.setScale(0.6,0.6,1);

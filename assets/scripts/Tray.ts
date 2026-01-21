@@ -32,13 +32,13 @@ export class Tray extends Component {
     for (let i = 2; i > -1; i--) {
         const block = instantiate(this.blockPrefab);
       block.setParent(this.node);
-      // block.setPosition(-40 + (i-1) * 250 , 0);
+      block.setPosition((i-1) * 250 , 0);
 
       const b = block.getComponent(Block)!;
       b.tray = this;
       b.board = this.board;
       b.cellPrefab = this.cellPrefab;
-      b.initRandom(i-1);
+      b.initRandom();
     }
   }
 

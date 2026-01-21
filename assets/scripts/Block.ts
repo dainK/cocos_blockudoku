@@ -28,7 +28,7 @@ import { Board } from './Board';
       this.node.on(Node.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
     }
   
-    initRandom (pos:number) {
+    initRandom () {
       this.shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
   
       const COLORS = [
@@ -40,40 +40,73 @@ import { Board } from './Board';
       ];
       this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
   
-      this.build(pos);
+      this.build();
       this.node.setScale(0.6, 0.6, 1);
     }
   
-    build (pos:number) {
+    build () {
       this.node.removeAllChildren();
       this.cells.length = 0;
-  
+    
       const size = 80;
-      const rows = this.shape.length;
-      const cols = this.shape[0].length;
-  
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-          if (this.shape[y][x] === 0) continue;
-  
+    
+      for (let y = 0; y < 5; y++) {
+        for (let x = 0; x < 5; x++) {
+          if (!this.shape[y][x]) continue;
+    
           const cell = instantiate(this.cellPrefab);
           cell.setParent(this.node);
+    
+          // ⭐ 중앙 (2,2) 기준
+          // cell.setPosition(
+          //   (x - 2) * size,
+          //   -(y - 2) * size
+          // );
           cell.setPosition(
             x * size,
             -y * size
           );
-  
+    
           cell.getComponent(Sprite)!.color = this.color;
           this.cells.push(cell);
         }
       }
-
-      this.node.setPosition(250*pos + (1-cols)*size/2,0)
-
+    
+      // const ui = this.node.getComponent(UITransform)!;
+      // ui.setContentSize(5 * size, 5 * size);
       const ui = this.node.getComponent(UITransform)!;
-      ui.setContentSize((cols+1) * size, (rows+3) * size);
+      ui.setAnchorPoint(0, 1);   // ⭐ 좌상단 앵커
+      ui.setContentSize(5 * size, 5 * size);
     }
-  
+    getShapeOffset() {
+      let minX = 5, minY = 5;
+    
+      for (let y = 0; y < 5; y++) {
+        for (let x = 0; x < 5; x++) {
+          if (this.shape[y][x]) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+          }
+        }
+      }
+    
+      return { minX, minY };
+    }
+    getShapeRealTopLeftWorld(): Vec3 {
+      const ui = this.node.getComponent(UITransform)!;
+      const size = 80;
+    
+      const { minX, minY } = this.getShapeOffset();
+    
+      // 중앙(2,2) 기준이므로 보정
+      const localPos = new Vec3(
+        (minX - 2) * size,
+        -(minY - 2) * size,
+        0
+      );
+    
+      return ui.convertToWorldSpaceAR(localPos);
+    }
     onTouchStart () {
       this.startPos.set(this.node.position);
       this.node.setScale(1, 1, 1);
@@ -85,10 +118,9 @@ import { Board } from './Board';
         this.node.position.x + delta.x,
         this.node.position.y + delta.y
       );
-
-        const worldPos = this.node.worldPosition.clone();
-        const { x, y } = this.board.worldToGrid(worldPos);
-        this.board.preview(this.shape, x, y);
+      const worldPos = this.node.worldPosition.clone();
+      const { x, y } = this.board.worldToGridTopLeft(worldPos);
+      this.board.preview(this.shape, x, y);
     }
 
 
@@ -96,15 +128,10 @@ import { Board } from './Board';
         this.node.setScale(0.6,0.6,1);
       
         const worldPos = this.node.worldPosition.clone();
-        const { x, y } = this.board.worldToGrid(worldPos);
-
-        const boardPos = this.board.node.getComponent(UITransform)
-            .convertToNodeSpaceAR(new Vec3(worldPos.x, worldPos.y));
-
-        const cell = this.board.getCellFromPos(boardPos);
+        const { x, y } = this.board.worldToGridTopLeft(worldPos); 
         this.board.clearPreview();
       
-        if (cell && this.board.canPlace(this.shape, x, y)) {
+        if ( this.board.canPlace(this.shape, x, y)) {
             this.board.place(this.shape, x, y, this.color);
             this.onDropSuccess();
         } else {
@@ -119,7 +146,6 @@ import { Board } from './Board';
         if (this.tray.node.children.length-1== 0) {
             this.tray.spawn();
         }
-      // 🔥 여기서 게임오버 체크
       const canPlace = this.board.canPlaceAny(this.tray.blocks);
       if (!canPlace) {
           // canPlaceAny 안에서 onGameOver 호출 안 해도 됨

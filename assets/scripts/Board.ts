@@ -83,45 +83,57 @@ import { Block } from './Block';
   
       return { x, y };
     }
-  
-    canPlace (shape:number[][], gx:number, gy:number) {
+    worldToGridTopLeft(worldPos: Vec3) {
+      const local = this.node.getComponent(UITransform)!
+        .convertToNodeSpaceAR(worldPos);
+    
+      const startX = -this.size * this.cellSize / 2;
+      const startY =  this.size * this.cellSize / 2;
+    
+      const x = Math.floor((local.x - startX) / this.cellSize);
+      const y = Math.floor((startY - local.y) / this.cellSize);
+    
+      return { x, y };
+    }
+
+    canPlace(shape: number[][], gx: number, gy: number): boolean {
       for (let y = 0; y < shape.length; y++) {
         for (let x = 0; x < shape[0].length; x++) {
-          if (!shape[y][x]) continue;
-  
+          if (shape[y][x] === 0) continue; // shape에서 0은 무시
+    
           const bx = gx + x;
           const by = gy + y;
-  
-          if (
-            bx < 0 || by < 0 ||
-            bx >= this.size || by >= this.size ||
-            this.grid[by][bx]
-          ) {
-            return false;
-          }
+    
+          // 보드 범위 밖이면 불가
+          if (bx < 0 || bx >= this.size || by < 0 || by >= this.size) return false;
+    
+          // 이미 채워진 칸이면 불가
+          if (this.grid[by][bx]) return false;
         }
       }
       return true;
     }
-  
-    // 🔥 여기서 "고정"이 일어난다
-    place (shape:number[][], gx:number, gy:number, color:Color) {
-      for (let y = 0; y < shape.length; y++) {
-        for (let x = 0; x < shape[0].length; x++) {
+
+    place(shape: number[][], gx: number, gy: number, color: Color) {
+      const h = shape.length;
+      const w = shape[0].length;
+    
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
           if (!shape[y][x]) continue;
-  
+    
           const bx = gx + x;
           const by = gy + y;
-  
+    
           this.grid[by][bx] = true;
-  
-          // 보드 셀 색 고정
-          const cell = this.cellNodes[by][bx];
-          cell.getComponent(Sprite)!.color = color;
+          this.cellNodes[by][bx]
+            .getComponent(Sprite)!.color = color;
         }
       }
+    
       this.checkAndClearLines();
     }
+    
 
     checkAndClearLines() {
         const fullRows: number[] = [];
@@ -196,66 +208,73 @@ import { Block } from './Block';
         }
         this.previewCells.length = 0;
     }
-    preview(shape: number[][], baseRow: number, baseCol: number) {
-        this.clearPreview();
-
-        if (!this.canPlace(shape, baseRow, baseCol)) return;
-
-        for (let y = 0; y < shape.length; y++) {
-            for (let x = 0; x < shape[0].length; x++) {
-              if (!shape[y][x]) continue;
-      
-              const bx = baseRow + x;
-              const by = baseCol + y;
-                this.previewCells.push({ bx, by });
-            }
-          }
+    preview(shape: number[][], gx: number, gy: number) {
+      this.clearPreview();
     
-            for (const p of this.previewCells) {
-                const cell = this.cellNodes[p.by][p.bx];
-                if (cell) {
-                    cell.getComponent(Sprite)!.color =
-                        new Color(100, 255, 100, 180);
-                }
-            }
-    }
-    getCellFromPos(pos: Vec3): { row: number; col: number } | null {
-        const size = this.cellSize;
-        const startX = -this.size * size / 2;
-        const startY = this.size * size / 2;
+      if (!this.canPlace(shape, gx, gy)) return;
     
-        const col = Math.floor((pos.x - startX) / size);
-        const row = Math.floor((startY - pos.y) / size);
+      const h = shape.length;
+      const w = shape[0].length;
     
-        if (row < 0 || row >= this.size || col < 0 || col >= this.size) {
-            return null;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (!shape[y][x]) continue;
+    
+          const bx = gx + x;
+          const by = gy + y;
+    
+          this.previewCells.push({ bx, by });
         }
-        return { row, col };
+      }
+    
+      for (const p of this.previewCells) {
+        const cell = this.cellNodes[p.by][p.bx];
+        if (cell) {
+          cell.getComponent(Sprite)!.color =
+            new Color(100, 255, 100, 180);
+        }
+      }
     }
     
+
+    getShapeCells(shape) {
+      const cells = [];
+      for (let y = 0; y < 5; y++) {
+        for (let x = 0; x < 5; x++) {
+          if (shape[y][x] === 1) {
+            cells.push({ x, y });
+          }
+        }
+      }
+      return cells;
+    }
+    getShapeSize(shape: number[][]): {rows: number, cols: number} {
+      let maxRow = 0, maxCol = 0;
+      for (let y = 0; y < shape.length; y++) {
+        for (let x = 0; x < shape[0].length; x++) {
+          if (shape[y][x]) {
+            maxRow = Math.max(maxRow, y);
+            maxCol = Math.max(maxCol, x);
+          }
+        }
+      }
+      return { rows: maxRow + 1, cols: maxCol + 1 };
+    }
     canPlaceAny(blocks: Block[]): boolean {
       for (const block of blocks) {
-          const shape = block.shape;
-          if (!shape || shape.length === 0) continue;
-  
-          const shapeH = shape.length;
-          const shapeW = shape[0].length;
-  
-          // 보드의 모든 좌표에 대해 시도
-          for (let y = 0; y <= this.size - shapeH; y++) {
-              for (let x = 0; x <= this.size - shapeW; x++) {
-                  if (this.canPlace(shape, x, y)) {
-                      // console.log('✅ 놓을 수 있음', block.node.name, x, y);
-                      return true;
-                  }
-              }
-          }
-      }
-  
-      // console.log('❌ 어떤 블록도 놓을 수 없음');
-      return false;
-  }
+        const shapeRows = block.shape.length;
+        const shapeCols = block.shape[0].length;
 
+        // 보드 전체에 대해 shape가 들어갈 수 있는 좌표만 체크
+        for (let y = 0; y <= this.size - shapeRows; y++) {
+          for (let x = 0; x <= this.size - shapeCols; x++) {
+            if (this.canPlace(block.shape, x, y)) return true;
+          }
+        }
+      }
+      return false;
+    }
+    
   gameOver() {
     this.ui.onGameOver();
   }
